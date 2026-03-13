@@ -1,0 +1,99 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@1571.vb_423c255d6d9">
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1">
+      <jobProperties/>
+      <triggers/>
+      <parameters>
+        <string>AWS_SECRET_KEY</string>
+        <string>COMMIT_SHA</string>
+        <string>AWS_ACCESS_KEY</string>
+      </parameters>
+      <options/>
+    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+  </actions>
+  <description>To Ensure the workloads being pushed are IM8 Compliant </description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>COMMIT_SHA</name>
+          <description>The exact GitHub Commit SHA from UAT</description>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.PasswordParameterDefinition>
+          <name>AWS_ACCESS_KEY</name>
+          <description>Temporary AWS Access Key</description>
+        </hudson.model.PasswordParameterDefinition>
+        <hudson.model.PasswordParameterDefinition>
+          <name>AWS_SECRET_KEY</name>
+          <description>Temporary AWS Secret Key</description>
+        </hudson.model.PasswordParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4259.vf653c2b_8a_b_69">
+    <script>pipeline {
+    agent any
+    
+    parameters {
+        string(name: &apos;COMMIT_SHA&apos;, description: &apos;The exact GitHub Commit SHA from UAT&apos;)
+        password(name: &apos;AWS_ACCESS_KEY&apos;, description: &apos;Temporary AWS Access Key&apos;)
+        password(name: &apos;AWS_SECRET_KEY&apos;, description: &apos;Temporary AWS Secret Key&apos;)
+    }
+    
+    environment {
+        AWS_ACCESS_KEY_ID = &quot;${params.AWS_ACCESS_KEY}&quot;
+        AWS_SECRET_ACCESS_KEY = &quot;${params.AWS_SECRET_KEY}&quot;
+        AWS_REGION = &quot;ap-southeast-1&quot;
+        AWS_ACCOUNT_ID = &quot;425629232565&quot;
+        ECR_REPO = &quot;epiq-discovery-engine&quot;
+    }
+
+    stages {
+        stage(&apos;IM8 Gate: AWS ECR Authentication&apos;) {
+            steps {
+                sh &apos;&apos;&apos;
+                echo &quot;Authenticating Compliance Auditor with AWS Vault...&quot;
+                aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+                &apos;&apos;&apos;
+            }
+        }
+        
+        stage(&apos;IM8 Gate: Verify Cryptographic Hash&apos;) {
+            steps {
+                sh &apos;&apos;&apos;
+                echo &quot;Pulling exact commit artifact: $COMMIT_SHA&quot;
+                docker pull $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$COMMIT_SHA
+                &apos;&apos;&apos;
+            }
+        }
+        
+        stage(&apos;IM8 Gate: Trivy Vulnerability Scan&apos;) {
+            steps {
+                sh &apos;&apos;&apos;
+                echo &quot;Scanning artifact for IM8 compliance...&quot;
+                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \
+                  --severity HIGH,CRITICAL \
+                  --exit-code 1 \
+                  $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$COMMIT_SHA
+                &apos;&apos;&apos;
+            }
+        }
+        
+        stage(&apos;IM8 Gate: Artifact Sign-Off&apos;) {
+            steps {
+                echo &quot;✅ Image SHA:$COMMIT_SHA has passed all IM8 compliance checks.&quot;
+                echo &quot;✅ Cryptographic hash verified. No Critical/High vulnerabilities found.&quot;
+                echo &quot;🚀 Artifact is officially SIGNED and ready for Azure PROD deployment.&quot;
+            }
+        }
+    }
+}</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

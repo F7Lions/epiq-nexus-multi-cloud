@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  jenkins-auditor:
+    image: jenkins/jenkins:lts
+    container_name: epiq-jenkins-auditor
+    user: root # Required to access the Docker socket locally
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - ./jenkins_data:/var/jenkins_home
+      - //var/run/docker.sock:/var/run/docker.sock # Allows Jenkins to run Docker commands
+    environment:
+      - JAVA_OPTS="-Djenkins.install.runSetupWizard=true"
