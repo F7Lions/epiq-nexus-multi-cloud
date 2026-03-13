@@ -1,4 +1,22 @@
-# provider.tf
+# 1. Terraform Core Configuration (Backend & Providers)
+terraform {
+  backend "s3" {
+    bucket         = "epiq-nexus-tfstate-f7lions"
+    key            = "uat/terraform.tfstate"
+    region         = "ap-southeast-1"
+    dynamodb_table = "epiq-nexus-tf-locks"
+    encrypt        = true
+  }
+  
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+  }
+}
+
+# 2. AWS Provider Configuration
 provider "aws" {
   region = "ap-southeast-1"
   default_tags {
@@ -10,7 +28,7 @@ provider "aws" {
   }
 }
 
-# FinOps Kill-Switch: Send an SNS alert when we hit $8 (80% of $10)
+# 3. FinOps Kill-Switch
 resource "aws_budgets_budget" "epiq_limit" {
   name              = "epiq-monthly-budget"
   budget_type       = "COST"
@@ -23,6 +41,6 @@ resource "aws_budgets_budget" "epiq_limit" {
     threshold                  = 80
     threshold_type             = "PERCENTAGE"
     notification_type          = "ACTUAL"
-    subscriber_email_addresses = ["your-email@example.com"] # CHANGE THIS
+    subscriber_email_addresses = ["imraannico@gmail.com"] # CHANGE THIS
   }
 }
