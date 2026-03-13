@@ -1,13 +1,12 @@
-name: "Epiq AWS UAT Infrastructure"
+name: "Epiq AWS UAT Infrastructure & App"
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
 
 jobs:
-  terraform:
-    name: "Terraform Build & Scan"
+  deploy-uat:
+    name: "Deploy UAT Engine & Push Image"
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -16,11 +15,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 🛑 THE MISSING PIECE: We must install Terraform on the runner!
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.5.0" # Locking the version for stability
+          terraform_version: "1.5.0"
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -35,3 +33,21 @@ jobs:
       - name: Terraform Plan
         run: terraform plan -out=tfplan
         working-directory: ./terraform-aws
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: ./terraform-aws
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: epiq-discovery-engine
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          cd app
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
