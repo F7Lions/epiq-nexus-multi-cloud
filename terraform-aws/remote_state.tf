@@ -1,12 +1,13 @@
 # 1. The S3 Bucket for the State File (Must be globally unique)
 resource "aws_s3_bucket" "terraform_state" {
   bucket = "epiq-nexus-tfstate-f7lions"
+  force_destroy = true
 
   # Senior Tip: We prevent destroy so a rogue pipeline doesn't delete our state
-  lifecycle {
-    prevent_destroy = true
+  #lifecycle {
+   # prevent_destroy = true
   }
-}
+
 
 # IM8 Requirement: Versioning for audit trails
 resource "aws_s3_bucket_versioning" "terraform_state" {
