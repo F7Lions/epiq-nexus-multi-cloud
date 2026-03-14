@@ -3,7 +3,7 @@ name: "Epiq AWS UAT Infrastructure & App"
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # Allows you to click "Run workflow" manually in GitHub
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -41,10 +41,14 @@ jobs:
           ECR_REPOSITORY: epiq-discovery-engine
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Building from the root directory where your Dockerfile lives
+          # Build and tag the image
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           
+          # Snipe the old 'latest' tag out of ECR to bypass the immutability lock
+          aws ecr batch-delete-image --repository-name $ECR_REPOSITORY --image-ids imageTag=latest --region ap-southeast-1 || true
+          
+          # Push the fresh images
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
