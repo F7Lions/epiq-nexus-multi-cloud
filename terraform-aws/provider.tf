@@ -1,12 +1,12 @@
 # 1. Terraform Core Configuration (Backend & Providers)
 terraform {
-  backend "s3" {
-  bucket         = "epiq-nexus-tfstate-f7lions"
-  key            = "global/s3/terraform.tfstate"
-  region         = "ap-southeast-1"
-  dynamodb_table = "epiq-nexus-tf-locks"
-  encrypt        = true
-  }
+  #backend "s3" {
+  #bucket         = "epiq-nexus-tfstate-f7lions"
+  #key            = "global/s3/terraform.tfstate"
+  #region         = "ap-southeast-1"
+  #dynamodb_table = "epiq-nexus-tf-locks"
+  # encrypt        = true
+  #}
   
   required_providers {
     aws = {
