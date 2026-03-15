@@ -66,7 +66,7 @@ resource "aws_lb" "epiq_alb" {
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id]
   subnets            = module.vpc.public_subnets
-  
+
   # CKV_AWS_131: IM8 - Drop invalid HTTP headers
   drop_invalid_header_fields = true
 
@@ -220,6 +220,12 @@ resource "aws_ecs_task_definition" "epiq_task" {
     name      = "epiq-discovery-container"
     image     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.ap-southeast-1.amazonaws.com/epiq-discovery-engine:latest"
     essential = true
+    readonlyRootFilesystem = true
+
+  portMappings = [{
+    containerPort = 8080
+    hostPort      = 8080
+  }]
     portMappings = [{
       containerPort = 8080
       hostPort      = 8080

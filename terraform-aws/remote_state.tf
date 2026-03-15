@@ -43,6 +43,11 @@ resource "aws_dynamodb_table" "terraform_locks" {
   billing_mode = "PAY_PER_REQUEST" # FinOps: Costs $0 if idle
   hash_key     = "LockID"
 
+# IM8: Point-in-time recovery for state lock table
+  point_in_time_recovery {
+    enabled = true
+  }
+  
   attribute {
     name = "LockID"
     type = "S"
