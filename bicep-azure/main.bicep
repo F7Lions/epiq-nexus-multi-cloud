@@ -239,20 +239,6 @@ resource storageDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
 }
 
 // ==========================================
-// 6. MICROSOFT PURVIEW (Data Governance)
-// ==========================================
-resource purviewAccount 'Microsoft.Purview/accounts@2021-07-01' = {
-  name: 'epiq-purview-${uniqueSuffix}'
-  location: location
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    publicNetworkAccess: 'Disabled'
-  }
-}
-
-// ==========================================
 // 7. DEFENDER FOR CLOUD (Security Posture)
 // ==========================================
 
@@ -302,4 +288,4 @@ output keyVaultName string = keyVault.name
 output keyVaultUri string = keyVault.properties.vaultUri
 output storageAccountName string = storageAccount.name
 output logAnalyticsWorkspaceId string = logAnalyticsWorkspace.id
-output purviewAccountName string = purviewAccount.name
+

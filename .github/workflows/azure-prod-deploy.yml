@@ -4,8 +4,24 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy-azure-infra:
+  # ============================================
+  # STAGE 1: Manual Approval Gate
+  # ============================================
+  approval-gate:
+    name: "Awaiting Human Approval"
     runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Approval Granted
+        run: echo "✅ PROD deployment approved by ${{ github.actor }}"
+
+  # ============================================
+  # STAGE 2: Azure PROD Deployment
+  # ============================================
+  deploy-azure-infra:
+    name: "Deploy Azure PROD Infrastructure"
+    runs-on: ubuntu-latest
+    needs: approval-gate
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -27,7 +43,7 @@ jobs:
             az provider register --namespace Microsoft.OperationalInsights --wait
             az provider register --namespace Microsoft.OperationsManagement --wait
             az provider register --namespace Microsoft.Insights --wait
-            echo "All providers registered successfully"
+            echo "✅ All providers registered successfully"
 
       - name: Deploy Bicep Infrastructure
         uses: azure/arm-deploy@v1
