@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "16359056403504788904"
+      "templateHash": "8552324886234821097"
     }
   },
   "parameters": {
@@ -88,21 +88,13 @@
         "logs": [
           {
             "categoryGroup": "allLogs",
-            "enabled": true,
-            "retentionPolicy": {
-              "enabled": true,
-              "days": 30
-            }
+            "enabled": true
           }
         ],
         "metrics": [
           {
             "category": "AllMetrics",
-            "enabled": true,
-            "retentionPolicy": {
-              "enabled": true,
-              "days": 30
-            }
+            "enabled": true
           }
         ]
       },
@@ -190,11 +182,7 @@
         "logs": [
           {
             "categoryGroup": "audit",
-            "enabled": true,
-            "retentionPolicy": {
-              "enabled": true,
-              "days": 30
-            }
+            "enabled": true
           }
         ]
       },
@@ -260,11 +248,7 @@
         "logs": [
           {
             "categoryGroup": "audit",
-            "enabled": true,
-            "retentionPolicy": {
-              "enabled": true,
-              "days": 30
-            }
+            "enabled": true
           }
         ]
       },
@@ -272,18 +256,6 @@
         "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]",
         "[resourceId('Microsoft.Storage/storageAccounts', format('epiqworm{0}', parameters('uniqueSuffix')))]"
       ]
-    },
-    {
-      "type": "Microsoft.Purview/accounts",
-      "apiVersion": "2021-07-01",
-      "name": "[format('epiq-purview-{0}', parameters('uniqueSuffix'))]",
-      "location": "[parameters('location')]",
-      "identity": {
-        "type": "SystemAssigned"
-      },
-      "properties": {
-        "publicNetworkAccess": "Disabled"
-      }
     },
     {
       "type": "Microsoft.Security/automations",
@@ -344,10 +316,6 @@
     "logAnalyticsWorkspaceId": {
       "type": "string",
       "value": "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]"
-    },
-    "purviewAccountName": {
-      "type": "string",
-      "value": "[format('epiq-purview-{0}', parameters('uniqueSuffix'))]"
     }
   }
 }
