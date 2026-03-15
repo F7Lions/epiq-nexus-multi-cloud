@@ -1,7 +1,7 @@
 name: Deploy Azure PROD Landing Zone
 
 on:
-  workflow_dispatch: # Allows us to trigger this manually
+  workflow_dispatch:
 
 jobs:
   deploy-azure-infra:
@@ -15,11 +15,19 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Create Resource Group
+      - name: Create Resource Group & Register Providers
         uses: azure/CLI@v1
         with:
           inlineScript: |
             az group create --name "Epiq-PROD-RG" --location "southeastasia"
+            echo "Registering Azure resource providers..."
+            az provider register --namespace Microsoft.Purview --wait
+            az provider register --namespace Microsoft.Monitor --wait
+            az provider register --namespace Microsoft.Security --wait
+            az provider register --namespace Microsoft.OperationalInsights --wait
+            az provider register --namespace Microsoft.OperationsManagement --wait
+            az provider register --namespace Microsoft.Insights --wait
+            echo "All providers registered successfully"
 
       - name: Deploy Bicep Infrastructure
         uses: azure/arm-deploy@v1
