@@ -5,7 +5,7 @@ param location string = 'southeastasia'
 param uniqueSuffix string = uniqueString(resourceGroup().id)
 
 // ==========================================
-// 1. OBSERVABILITY (Azure Monitor & Sentinel)
+// 1. OBSERVABILITY (Log Analytics & Sentinel)
 // ==========================================
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: 'epiq-monitor-workspace-${uniqueSuffix}'
@@ -33,7 +33,61 @@ resource sentinel 'Microsoft.OperationsManagement/solutions@2015-11-01-preview' 
 }
 
 // ==========================================
-// 2. NETWORKING (VNet for Private Endpoints)
+// 2. AZURE MONITOR (Metrics & Alerts)
+// ==========================================
+resource azureMonitorWorkspace 'microsoft.monitor/accounts@2023-04-03' = {
+  name: 'epiq-azure-monitor-${uniqueSuffix}'
+  location: location
+}
+
+// Action Group for alerts - notifies the team
+resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
+  name: 'epiq-alerts-ag'
+  location: 'global'
+  properties: {
+    groupShortName: 'EpiqAlerts'
+    enabled: true
+    emailReceivers: [
+      {
+        name: 'Roger-Senior-DevOps'
+        emailAddress: 'imraannico@gmail.com'
+        useCommonAlertSchema: true
+      }
+    ]
+  }
+}
+
+// Diagnostic Settings - pipe all logs to Log Analytics
+resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'epiq-diag-settings'
+  scope: logAnalyticsWorkspace
+  properties: {
+    workspaceId: logAnalyticsWorkspace.id
+    logs: [
+      {
+        categoryGroup: 'allLogs'
+        enabled: true
+        retentionPolicy: {
+          enabled: true
+          days: 30
+        }
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+        retentionPolicy: {
+          enabled: true
+          days: 30
+        }
+      }
+    ]
+  }
+}
+
+// ==========================================
+// 3. NETWORKING (VNet for Private Endpoints)
 // ==========================================
 resource vnet 'Microsoft.Network/virtualNetworks@2023-04-01' = {
   name: 'epiq-prod-vnet'
@@ -57,7 +111,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-04-01' = {
 }
 
 // ==========================================
-// 3. SECURE LANDING ZONE (Key Vault & WORM)
+// 4. SECURE LANDING ZONE (Key Vault)
 // ==========================================
 resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
   name: 'epiq-kv-${uniqueSuffix}'
@@ -71,10 +125,17 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
     enableRbacAuthorization: true
+    // IM8: Network ACLs - deny all by default
+    networkAcls: {
+      defaultAction: 'Deny'
+      bypass: 'AzureServices'
+      virtualNetworkRules: []
+      ipRules: []
+    }
   }
 }
 
-// Private Endpoint for the Key Vault
+// Private Endpoint for Key Vault
 resource kvPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-04-01' = {
   name: 'epiq-kv-private-endpoint'
   location: location
@@ -96,6 +157,28 @@ resource kvPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-04-01' = {
   }
 }
 
+// Key Vault Diagnostic Settings - pipe to Sentinel
+resource kvDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'epiq-kv-diag'
+  scope: keyVault
+  properties: {
+    workspaceId: logAnalyticsWorkspace.id
+    logs: [
+      {
+        categoryGroup: 'audit'
+        enabled: true
+        retentionPolicy: {
+          enabled: true
+          days: 30
+        }
+      }
+    ]
+  }
+}
+
+// ==========================================
+// 5. WORM STORAGE (Immutable Audit Logs)
+// ==========================================
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: 'epiqworm${uniqueSuffix}'
   location: location
@@ -110,3 +193,113 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
     supportsHttpsTrafficOnly: true
   }
 }
+
+// IM8: Blob service required as parent for container
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-01-01' = {
+  parent: storageAccount
+  name: 'default'
+}
+
+// IM8: Blob container for immutable audit logs
+resource wormContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
+  parent: blobService
+  name: 'audit-logs'
+  properties: {
+    publicAccess: 'None'
+  }
+}
+
+// IM8: WORM immutability policy - tamper-proof for 7 days
+resource immutabilityPolicy 'Microsoft.Storage/storageAccounts/blobServices/containers/immutabilityPolicies@2023-01-01' = {
+  parent: wormContainer
+  name: 'default'
+  properties: {
+    immutabilityPeriodSinceCreationInDays: 7
+    allowProtectedAppendWrites: false
+  }
+}
+
+// Storage Diagnostic Settings - pipe to Sentinel
+resource storageDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'epiq-storage-diag'
+  scope: storageAccount
+  properties: {
+    workspaceId: logAnalyticsWorkspace.id
+    logs: [
+      {
+        categoryGroup: 'audit'
+        enabled: true
+        retentionPolicy: {
+          enabled: true
+          days: 30
+        }
+      }
+    ]
+  }
+}
+
+// ==========================================
+// 6. MICROSOFT PURVIEW (Data Governance)
+// ==========================================
+resource purviewAccount 'Microsoft.Purview/accounts@2021-07-01' = {
+  name: 'epiq-purview-${uniqueSuffix}'
+  location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    publicNetworkAccess: 'Disabled'
+  }
+}
+
+// ==========================================
+// 7. DEFENDER FOR CLOUD (Security Posture)
+// ==========================================
+
+// IM8: Auto-export Defender alerts to Sentinel
+resource defenderToSentinel 'Microsoft.Security/automations@2023-11-15' = {
+  name: 'epiq-defender-to-sentinel'
+  location: location
+  properties: {
+    description: 'IM8: Auto-export Defender alerts to Sentinel for SIEM correlation'
+    isEnabled: true
+    scopes: [
+      {
+        description: 'Epiq subscription scope'
+        scopePath: subscription().id
+      }
+    ]
+    sources: [
+      {
+        eventSource: 'Alerts'
+        ruleSets: [
+          {
+            rules: [
+              {
+                propertyJPath: 'properties.metadata.severity'
+                propertyType: 'String'
+                expectedValue: 'High'
+                operator: 'Contains'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+    actions: [
+      {
+        actionType: 'Workspace'
+        workspaceResourceId: logAnalyticsWorkspace.id
+      }
+    ]
+  }
+}
+
+// ==========================================
+// 8. OUTPUTS
+// ==========================================
+output keyVaultName string = keyVault.name
+output keyVaultUri string = keyVault.properties.vaultUri
+output storageAccountName string = storageAccount.name
+output logAnalyticsWorkspaceId string = logAnalyticsWorkspace.id
+output purviewAccountName string = purviewAccount.name

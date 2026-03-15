@@ -1,0 +1,353 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.41.2.15936",
+      "templateHash": "16359056403504788904"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "southeastasia",
+      "metadata": {
+        "description": "The Azure region for the deployment."
+      }
+    },
+    "uniqueSuffix": {
+      "type": "string",
+      "defaultValue": "[uniqueString(resourceGroup().id)]",
+      "metadata": {
+        "description": "A unique suffix to prevent naming collisions."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2022-10-01",
+      "name": "[format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "type": "Microsoft.OperationsManagement/solutions",
+      "apiVersion": "2015-11-01-preview",
+      "name": "[format('SecurityInsights({0})', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]"
+      },
+      "plan": {
+        "name": "[format('SecurityInsights({0})', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]",
+        "product": "OMSGallery/SecurityInsights",
+        "publisher": "Microsoft",
+        "promotionCode": ""
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Monitor/accounts",
+      "apiVersion": "2023-04-03",
+      "name": "[format('epiq-azure-monitor-{0}', parameters('uniqueSuffix'))]",
+      "location": "[parameters('location')]"
+    },
+    {
+      "type": "Microsoft.Insights/actionGroups",
+      "apiVersion": "2023-01-01",
+      "name": "epiq-alerts-ag",
+      "location": "global",
+      "properties": {
+        "groupShortName": "EpiqAlerts",
+        "enabled": true,
+        "emailReceivers": [
+          {
+            "name": "Roger-Senior-DevOps",
+            "emailAddress": "imraannico@gmail.com",
+            "useCommonAlertSchema": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]",
+      "name": "epiq-diag-settings",
+      "properties": {
+        "workspaceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]",
+        "logs": [
+          {
+            "categoryGroup": "allLogs",
+            "enabled": true,
+            "retentionPolicy": {
+              "enabled": true,
+              "days": 30
+            }
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true,
+            "retentionPolicy": {
+              "enabled": true,
+              "days": 30
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-04-01",
+      "name": "epiq-prod-vnet",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.1.0.0/16"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "PrivateEndpointSubnet",
+            "properties": {
+              "addressPrefix": "10.1.1.0/24",
+              "privateEndpointNetworkPolicies": "Disabled"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2023-02-01",
+      "name": "[format('epiq-kv-{0}', parameters('uniqueSuffix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "family": "A",
+          "name": "standard"
+        },
+        "tenantId": "[subscription().tenantId]",
+        "enableSoftDelete": true,
+        "softDeleteRetentionInDays": 7,
+        "enableRbacAuthorization": true,
+        "networkAcls": {
+          "defaultAction": "Deny",
+          "bypass": "AzureServices",
+          "virtualNetworkRules": [],
+          "ipRules": []
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2023-04-01",
+      "name": "epiq-kv-private-endpoint",
+      "location": "[parameters('location')]",
+      "properties": {
+        "subnet": {
+          "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', 'epiq-prod-vnet'), '2023-04-01').subnets[0].id]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "kv-connection",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.KeyVault/vaults', format('epiq-kv-{0}', parameters('uniqueSuffix')))]",
+              "groupIds": [
+                "vault"
+              ]
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', format('epiq-kv-{0}', parameters('uniqueSuffix')))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', 'epiq-prod-vnet')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', format('epiq-kv-{0}', parameters('uniqueSuffix')))]",
+      "name": "epiq-kv-diag",
+      "properties": {
+        "workspaceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]",
+        "logs": [
+          {
+            "categoryGroup": "audit",
+            "enabled": true,
+            "retentionPolicy": {
+              "enabled": true,
+              "days": 30
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', format('epiq-kv-{0}', parameters('uniqueSuffix')))]",
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-01-01",
+      "name": "[format('epiqworm{0}', parameters('uniqueSuffix'))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "accessTier": "Hot",
+        "allowBlobPublicAccess": false,
+        "minimumTlsVersion": "TLS1_2",
+        "supportsHttpsTrafficOnly": true
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}', format('epiqworm{0}', parameters('uniqueSuffix')), 'default')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', format('epiqworm{0}', parameters('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}/{2}', format('epiqworm{0}', parameters('uniqueSuffix')), 'default', 'audit-logs')]",
+      "properties": {
+        "publicAccess": "None"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', format('epiqworm{0}', parameters('uniqueSuffix')), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers/immutabilityPolicies",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}/{2}/{3}', format('epiqworm{0}', parameters('uniqueSuffix')), 'default', 'audit-logs', 'default')]",
+      "properties": {
+        "immutabilityPeriodSinceCreationInDays": 7,
+        "allowProtectedAppendWrites": false
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', format('epiqworm{0}', parameters('uniqueSuffix')), 'default', 'audit-logs')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', format('epiqworm{0}', parameters('uniqueSuffix')))]",
+      "name": "epiq-storage-diag",
+      "properties": {
+        "workspaceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]",
+        "logs": [
+          {
+            "categoryGroup": "audit",
+            "enabled": true,
+            "retentionPolicy": {
+              "enabled": true,
+              "days": 30
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', format('epiqworm{0}', parameters('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Purview/accounts",
+      "apiVersion": "2021-07-01",
+      "name": "[format('epiq-purview-{0}', parameters('uniqueSuffix'))]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "publicNetworkAccess": "Disabled"
+      }
+    },
+    {
+      "type": "Microsoft.Security/automations",
+      "apiVersion": "2023-11-15",
+      "name": "epiq-defender-to-sentinel",
+      "location": "[parameters('location')]",
+      "properties": {
+        "description": "IM8: Auto-export Defender alerts to Sentinel for SIEM correlation",
+        "isEnabled": true,
+        "scopes": [
+          {
+            "description": "Epiq subscription scope",
+            "scopePath": "[subscription().id]"
+          }
+        ],
+        "sources": [
+          {
+            "eventSource": "Alerts",
+            "ruleSets": [
+              {
+                "rules": [
+                  {
+                    "propertyJPath": "properties.metadata.severity",
+                    "propertyType": "String",
+                    "expectedValue": "High",
+                    "operator": "Contains"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "actions": [
+          {
+            "actionType": "Workspace",
+            "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "keyVaultName": {
+      "type": "string",
+      "value": "[format('epiq-kv-{0}', parameters('uniqueSuffix'))]"
+    },
+    "keyVaultUri": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.KeyVault/vaults', format('epiq-kv-{0}', parameters('uniqueSuffix'))), '2023-02-01').vaultUri]"
+    },
+    "storageAccountName": {
+      "type": "string",
+      "value": "[format('epiqworm{0}', parameters('uniqueSuffix'))]"
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]"
+    },
+    "purviewAccountName": {
+      "type": "string",
+      "value": "[format('epiq-purview-{0}', parameters('uniqueSuffix'))]"
+    }
+  }
+}
