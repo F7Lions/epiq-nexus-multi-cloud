@@ -25,6 +25,20 @@ jobs:
           format: 'table'
           severity: 'CRITICAL,HIGH'
 
+      - name: 🔍 IaC Security Scan (tfsec)
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          working_directory: ./terraform-aws
+          soft_fail: true # IM8: Log violations but don't block UAT for now
+
+      - name: 🔎 IaC Compliance Scan (Checkov)
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: ./terraform-aws
+          framework: terraform
+          soft_fail: true # IM8: Log violations but don't block UAT for now
+          output_format: cli
+
       - name: 🔐 Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -55,3 +69,6 @@ jobs:
       - name: 🔄 Trigger ECS Rolling Update
         run: |
           aws ecs update-service --cluster epiq-discovery-cluster --service epiq-discovery-service --force-new-deployment
+
+
+
