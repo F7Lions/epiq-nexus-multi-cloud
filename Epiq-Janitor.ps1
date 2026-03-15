@@ -74,7 +74,10 @@ if (Test-Path "terraform-aws/terraform.tfstate") { Remove-Item -Force "terraform
 
 # Delete Jenkins Auditor IAM User
 Write-Host "   Removing Jenkins Auditor IAM User..."
-aws iam delete-access-key --user-name epiq-jenkins-auditor --access-key-id AKIAWGGL2VW2XSKUBOEQ 2>$null
+$jenkinsKeyId = aws iam list-access-keys --user-name epiq-jenkins-auditor --query "AccessKeyMetadata[0].AccessKeyId" --output text 2>$null
+if ($jenkinsKeyId) {
+    aws iam delete-access-key --user-name epiq-jenkins-auditor --access-key-id $jenkinsKeyId 2>$null
+}
 aws iam detach-user-policy --user-name epiq-jenkins-auditor --policy-arn arn:aws:iam::425629232565:policy/epiq-jenkins-auditor-policy 2>$null
 aws iam delete-user --user-name epiq-jenkins-auditor 2>$null
 
