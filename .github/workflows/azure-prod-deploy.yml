@@ -48,6 +48,7 @@ jobs:
       - name: Deploy Bicep Infrastructure
         uses: azure/arm-deploy@v1
         with:
+          scope: resourcegroup
           resourceGroupName: "Epiq-PROD-RG"
           template: ./bicep-azure/main.bicep
-          failOnStdErr: false
+          failOnStdErr: false 

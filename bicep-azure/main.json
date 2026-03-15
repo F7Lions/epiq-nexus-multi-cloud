@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "8552324886234821097"
+      "templateHash": "16455021758649621444"
     }
   },
   "parameters": {
@@ -245,9 +245,9 @@
       "name": "epiq-storage-diag",
       "properties": {
         "workspaceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]",
-        "logs": [
+        "metrics": [
           {
-            "categoryGroup": "audit",
+            "category": "Transaction",
             "enabled": true
           }
         ]
@@ -255,48 +255,6 @@
       "dependsOn": [
         "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]",
         "[resourceId('Microsoft.Storage/storageAccounts', format('epiqworm{0}', parameters('uniqueSuffix')))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Security/automations",
-      "apiVersion": "2023-11-15",
-      "name": "epiq-defender-to-sentinel",
-      "location": "[parameters('location')]",
-      "properties": {
-        "description": "IM8: Auto-export Defender alerts to Sentinel for SIEM correlation",
-        "isEnabled": true,
-        "scopes": [
-          {
-            "description": "Epiq subscription scope",
-            "scopePath": "[subscription().id]"
-          }
-        ],
-        "sources": [
-          {
-            "eventSource": "Alerts",
-            "ruleSets": [
-              {
-                "rules": [
-                  {
-                    "propertyJPath": "properties.metadata.severity",
-                    "propertyType": "String",
-                    "expectedValue": "High",
-                    "operator": "Contains"
-                  }
-                ]
-              }
-            ]
-          }
-        ],
-        "actions": [
-          {
-            "actionType": "Workspace",
-            "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]"
-          }
-        ]
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.OperationalInsights/workspaces', format('epiq-monitor-workspace-{0}', parameters('uniqueSuffix')))]"
       ]
     }
   ],

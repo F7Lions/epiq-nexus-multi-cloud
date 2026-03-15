@@ -215,53 +215,10 @@ resource storageDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
   scope: storageAccount
   properties: {
     workspaceId: logAnalyticsWorkspace.id
-    logs: [
+    metrics: [
       {
-        categoryGroup: 'audit'
+        category: 'Transaction'
         enabled: true
-      }
-    ]
-  }
-}
-
-// ==========================================
-// 7. DEFENDER FOR CLOUD (Security Posture)
-// ==========================================
-
-// IM8: Auto-export Defender alerts to Sentinel
-resource defenderToSentinel 'Microsoft.Security/automations@2023-11-15' = {
-  name: 'epiq-defender-to-sentinel'
-  location: location
-  properties: {
-    description: 'IM8: Auto-export Defender alerts to Sentinel for SIEM correlation'
-    isEnabled: true
-    scopes: [
-      {
-        description: 'Epiq subscription scope'
-        scopePath: subscription().id
-      }
-    ]
-    sources: [
-      {
-        eventSource: 'Alerts'
-        ruleSets: [
-          {
-            rules: [
-              {
-                propertyJPath: 'properties.metadata.severity'
-                propertyType: 'String'
-                expectedValue: 'High'
-                operator: 'Contains'
-              }
-            ]
-          }
-        ]
-      }
-    ]
-    actions: [
-      {
-        actionType: 'Workspace'
-        workspaceResourceId: logAnalyticsWorkspace.id
       }
     ]
   }
